@@ -1,1 +1,12 @@
-# universal-helm-chart
+# helm-chart-template
+- Deployment
+- StatefulSet
+- DaemonSet
+- Job
+- CronJob
+- ConfigMap
+- Secret
+- PersistentVolumeClaim
+- Ingress
+- HorizontalPodAutoscaler
+- Service
