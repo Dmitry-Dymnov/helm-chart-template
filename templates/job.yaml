@@ -63,7 +63,7 @@ spec:
       restartPolicy: {{ .restartPolicy | default "OnFailure" }}
       {{- if $.Values.imagePullSecret }}
       imagePullSecrets:
-        - name: {{ template "app.fullname" $ }}
+        - name: {{ template "app.fullname" $ }}-pullsecret
       {{- end }}
       {{- if $.Values.volumes }}
       volumes: {{- include "values.render" (dict "value" $.Values.volumes "context" $) | nindent 8 }}

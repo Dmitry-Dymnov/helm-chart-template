@@ -172,7 +172,7 @@ spec:
       {{- end }}
       {{- if .Values.imagePullSecret }}
       imagePullSecrets:
-        - name: {{ template "app.fullname" . }}
+        - name: {{ template "app.fullname" . }}-pullsecret
       {{- end }}
       dnsConfig:
         options:

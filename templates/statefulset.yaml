@@ -41,7 +41,7 @@ spec:
       {{- end }}
       {{- if .Values.imagePullSecret }}
       imagePullSecrets:
-        - name: {{ template "app.fullname" . }}
+        - name: {{ template "app.fullname" . }}-pullsecret
       {{- end }}
       {{- if or $affinity.podAffinity $affinity.podAntiAffinity $affinity.nodeAffinity }}
       affinity:
