@@ -1,0 +1,85 @@
+{{- if and (eq .Values.global_settings.cronjob true) (.Values.cronjob) }}
+{{- range .Values.cronjob}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "app.labels" $ | nindent 4 }}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: {{ .concurrencyPolicy | default "Allow" }}
+  successfulJobsHistoryLimit: {{ .successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .failedJobsHistoryLimit | default 1 }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .backoffLimit }}
+      {{- if .activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ .activeDeadlineSeconds }}
+      {{- end }}
+      template:
+        metadata:
+          labels:
+            cronjob: {{ .name }}
+            {{- include "app.selectorLabels" $ | nindent 12 }}
+        spec:
+          containers:
+          {{- range $k, $v := .containers }}
+          - image: "{{ .repository }}:{{ .tag }}"
+            name: {{ $k }}
+            imagePullPolicy: {{ .imagePullPolicy | default "IfNotPresent" }}
+            {{- if .securityContext }}
+            securityContext: {{- include "values.render" (dict "value" .securityContext "context" $) | nindent 14 }}
+            {{- end }}
+            {{- if .command }}
+            command: {{- include "values.render" (dict "value" .command "context" $) | nindent 14 }}
+            {{- end }}
+            {{- if .args }}
+            args: {{- include "values.render" (dict "value" .args "context" $) | nindent 14 }}
+            {{- end }}
+            {{- if or .requests .limits }}
+            resources:
+              {{- if .requests }}
+              requests:
+                memory: {{ .requests.memory }}
+                cpu: {{ .requests.cpu }}
+              {{- end }}
+              {{- if .limits }}
+              limits:
+                memory: {{ .limits.memory }}
+                cpu: {{ .limits.cpu }}
+              {{- end }}
+            {{- end }}
+            env:
+              {{- if .env_vars }}
+              {{- include "values.render" (dict "value" .env_vars "context" $) | nindent 14 }}
+              {{- end }}
+            envFrom:
+              {{- if .env_vars_cm }}
+              - configMapRef:
+                  name: {{ include "values.render" (dict "value" .env_vars_cm "context" $) }}
+              {{- end }}
+              {{- if .env_vars_secret }}
+              - secretRef:
+                  name: {{ include "values.render" (dict "value" .env_vars_secret "context" $) }}
+              {{- end }}
+            {{- if .volumeMounts }}
+            volumeMounts: {{- include "values.render" (dict "value" .volumeMounts "context" $) | nindent 14 }}
+            {{- end }}
+          {{ end }}
+          restartPolicy: {{ .restartPolicy | default "OnFailure" }}
+          {{- if $.Values.imagePullSecret }}
+          imagePullSecrets:
+            - name: {{ template "app.fullname" $ }}
+          {{- end }}
+          {{- if $.Values.volumes }}
+          volumes: {{- include "values.render" (dict "value" $.Values.volumes "context" $) | nindent 12 }}
+          {{- end }}
+          dnsConfig:
+            options:
+            - name: ndots
+              value: "2"
+            - name: single-request-reopen
+---
+{{ end }}
+{{ end }}

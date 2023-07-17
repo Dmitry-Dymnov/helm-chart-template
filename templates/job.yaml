@@ -1,0 +1,78 @@
+{{- if and (eq .Values.global_settings.job true) (.Values.job) }}
+{{- range .Values.job}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .name }}
+  labels:
+    job: {{ .name }}
+    {{- include "app.labels" $ | nindent 4 }}
+  {{- if .annotations }}
+  annotations: {{- include "values.render" (dict "value" .annotations "context" $) | nindent 4 }}
+  {{- end }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "app.selectorLabels" $ | nindent 8 }}
+    spec:
+      containers:
+      {{- range $k, $v := .containers }}
+      - image: "{{ .repository }}:{{ .tag }}"
+        {{- if .command }}
+        command: {{- include "values.render" (dict "value" .command "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if .args }}
+        args: {{- include "values.render" (dict "value" .args "context" $) | nindent 12 }}
+        {{- end }}
+        imagePullPolicy: {{ .imagePullPolicy }}
+        name: {{ $k }}
+        {{- if .securityContext }}
+        securityContext: {{- include "values.render" (dict "value" .securityContext "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if or .requests .limits }}
+        resources:
+          {{- if .requests }}
+          requests:
+            memory: {{ .requests.memory }}
+            cpu: {{ .requests.cpu }}
+          {{- end }}
+          {{- if .limits }}
+          limits:
+            memory: {{ .limits.memory }}
+            cpu: {{ .limits.cpu }}
+          {{- end }}
+        {{- end }}
+        env:
+          {{- if .env_vars }}
+          {{- include "values.render" (dict "value" .env_vars "context" $) | nindent 12 }}
+          {{- end }}
+        envFrom:
+          {{- if .env_vars_cm }}
+          - configMapRef:
+              name: {{ include "values.render" (dict "value" .env_vars_cm "context" $) }}
+          {{- end }}
+          {{- if .env_vars_secret }}
+          - secretRef:
+              name: {{ include "values.render" (dict "value" .env_vars_secret "context" $) }}
+          {{- end }}
+        {{- if .volumeMounts }}
+        volumeMounts: {{- include "values.render" (dict "value" .volumeMounts "context" $) | nindent 12 }}
+        {{- end }}
+      {{ end }}
+      restartPolicy: {{ .restartPolicy | default "OnFailure" }}
+      {{- if $.Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ template "app.fullname" $ }}
+      {{- end }}
+      {{- if $.Values.volumes }}
+      volumes: {{- include "values.render" (dict "value" $.Values.volumes "context" $) | nindent 8 }}
+      {{- end }}
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: single-request-reopen
+---
+{{ end }}
+{{ end }}

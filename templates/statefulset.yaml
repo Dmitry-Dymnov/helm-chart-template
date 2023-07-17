@@ -1,0 +1,205 @@
+{{- if and (eq .Values.global_settings.deploy_type "statefulset") (.Values.containers) }}
+{{- $rollme := .Values.rollme }}
+{{- $debug := .Values.debug_mode }}
+{{- $affinity := .Values.affinity }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "app.fullname" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  {{- if and (.Values.replicaCount) (ne .Values.global_settings.hpa true) }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  podManagementPolicy: {{ .Values.podManagementPolicy | default "OrderedReady" }}
+  selector:
+    matchLabels:
+      {{- include "app.selectorLabels" . | nindent 6 }}
+  serviceName: {{ .Values.serviceName }}
+  {{- if .Values.updateStrategy }}
+  strategy: {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      {{- if and $rollme.enabled (empty .Values.podAnnotations) }}
+      annotations:
+        rollme: {{ randAlphaNum 6 | quote }}
+      {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- if $rollme.enabled }}
+        rollme: {{ randAlphaNum 6 | quote }}
+        {{- end }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "app.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      {{- end }}
+      {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ template "app.fullname" . }}
+      {{- end }}
+      {{- if or $affinity.podAffinity $affinity.podAntiAffinity $affinity.nodeAffinity }}
+      affinity:
+        {{- if $affinity.podAffinity }}
+        podAffinity: {{- omit $affinity.podAffinity | toYaml | nindent 12 }}
+        {{- end }}
+        {{- if $affinity.podAntiAffinity }}
+        podAntiAffinity: {{- omit $affinity.podAntiAffinity | toYaml | nindent 12 }}
+        {{- end }}
+        {{- if $affinity.nodeAffinity }}
+        nodeAffinity: {{- omit $affinity.nodeAffinity | toYaml | nindent 12 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations: {{- include "values.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      containers:
+      {{- range $containers, $keys := .Values.containers }}
+      - image: "{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .imagePullPolicy }}
+        name: {{ $containers }}
+        {{- if .securityContext }}
+        securityContext: {{- include "values.render" (dict "value" .securityContext "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if $debug.enabled }}
+        command: {{ $debug.command }}
+        {{- else if .command }}
+        command: {{- include "values.render" (dict "value" .command "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if $debug.enabled }}
+        args: {{ $debug.args }}
+        {{- else if .args }}
+        args: {{- include "values.render" (dict "value" .args "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if .ports }}
+        ports: {{- include "values.render" (dict "value" .ports "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if not $debug.enabled }}
+        {{- if .livenessProbe }}
+        livenessProbe: {{- include "values.render" (dict "value" .livenessProbe "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if .readinessProbe }}
+        readinessProbe: {{- include "values.render" (dict "value" .readinessProbe "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if .startupProbe }}
+        startupProbe: {{- include "values.render" (dict "value" .startupProbe "context" $) | nindent 12 }}
+        {{- end }}
+        {{- end }}
+        {{- if .lifecycle }}
+        lifecycle: {{- include "values.render" (dict "value" .lifecycle "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if or .requests .limits }}
+        resources:
+          {{- if .requests }}
+          requests:
+            memory: {{ .requests.memory }}
+            cpu: {{ .requests.cpu }}
+          {{- end }}
+          {{- if .limits }}
+          limits:
+            memory: {{ .limits.memory }}
+            cpu: {{ .limits.cpu }}
+          {{- end }}
+        {{- end }}
+        env:
+          {{- if .env_vars }}
+          {{- include "values.render" (dict "value" .env_vars "context" $) | nindent 12 }}
+          {{- end }}
+        envFrom:
+          {{- if .env_vars_cm }}
+          - configMapRef:
+              name: {{ include "values.render" (dict "value" .env_vars_cm "context" $) }}
+          {{- end }}
+          {{- if .env_vars_secret }}
+          - secretRef:
+              name: {{ include "values.render" (dict "value" .env_vars_secret "context" $) }}
+          {{- end }}
+        {{- if .volumeMounts }}
+        volumeMounts: {{- include "values.render" (dict "value" .volumeMounts "context" $) | nindent 12 }}
+        {{- end }}
+      {{ end }}
+      {{- if .Values.initcontainers }}
+      initContainers:
+      {{- range $init_containers, $key := .Values.initcontainers }}
+      - image: "{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .imagePullPolicy }}
+        name: {{ $init_containers }}
+        {{- if .securityContext }}
+        securityContext: {{- include "values.render" (dict "value" .securityContext "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if $debug.enabled }}
+        command: {{ $debug.command }}
+        {{- else if .command }}
+        command: {{- include "values.render" (dict "value" .command "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if $debug.enabled }}
+        args: {{ $debug.args }}
+        {{- else if .args }}
+        args: {{- include "values.render" (dict "value" .args "context" $) | nindent 12 }}
+        {{- end }}
+        {{- if or .requests .limits }}
+        resources:
+          {{- if .requests }}
+          requests:
+            memory: {{ .requests.memory }}
+            cpu: {{ .requests.cpu }}
+          {{- end }}
+          {{- if .limits }}
+          limits:
+            memory: {{ .limits.memory }}
+            cpu: {{ .limits.cpu }}
+          {{- end }}
+        {{- end }}
+        env:
+          {{- if .env_vars }}
+          {{- include "values.render" (dict "value" .env_vars "context" $) | nindent 12 }}
+          {{- end }}
+        envFrom:
+          {{- if .env_vars_cm }}
+          - configMapRef:
+              name: {{ include "values.render" (dict "value" .env_vars_cm "context" $) }}
+          {{- end }}
+          {{- if .env_vars_secret }}
+          - secretRef:
+              name: {{ include "values.render" (dict "value" .env_vars_secret "context" $) }}
+          {{- end }}
+        {{- if .volumeMounts }}
+        volumeMounts: {{- include "values.render" (dict "value" .volumeMounts "context" $) | nindent 12 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: single-request-reopen
+      {{- if .Values.volumes }}
+      volumes: {{- include "values.render" (dict "value" .Values.volumes "context" $) | nindent 8 }}
+      {{- end }}
+  {{- if and (eq .Values.global_settings.pvc true) (.Values.persistentVolumeClaim) }}
+  volumeClaimTemplates:
+    {{- range $k, $v := .Values.persistentVolumeClaim }}
+    - metadata:
+        name: {{ $k }}
+        labels:
+          {{- include "app.labels" $ | nindent 12 }}
+        {{- if .annotations }}
+        annotations: {{- include "values.render" (dict "value" .annotations "context" $) | nindent 12 }}
+        {{- end }}
+      spec:
+        accessModes:
+        {{- range .accessModes }}
+          - {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .storageCapasity }}
+        storageClassName: {{ .storageClassName }}
+    {{- end }}
+  {{- end }}
+{{- end }}

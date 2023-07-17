@@ -1,0 +1,22 @@
+{{- if and (eq .Values.global_settings.services true) (.Values.services) }}
+{{- range $k, $v := .Values.services }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $k }}
+  labels:
+    {{- include "app.labels" $ | nindent 4 }}
+  annotations:
+    {{- if .prometheus_metrics }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ .prometheus_metrics.metrics_port | quote }}
+    prometheus.io/path: {{ .prometheus_metrics.metrics_path | quote }}
+    {{- end }}
+spec:
+  type: {{ .type }}
+  ports: {{- include "values.render" (dict "value" .ports "context" $) | nindent 4 }}
+  selector:
+    {{- include "app.selectorLabels" $ | nindent 4 }}
+---
+{{- end }}
+{{- end }}

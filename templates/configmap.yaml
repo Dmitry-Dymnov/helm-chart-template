@@ -1,0 +1,34 @@
+{{- if eq .Values.global_settings.configmaps true }}
+{{- if .Values.configmaps }}
+{{- $cm := .Values.configmaps }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "app.labels" $ | nindent 4 }}
+  name: {{ template "app.fullname" . }}
+data:
+{{- if $cm }}
+{{- range $configs, $keys := $cm }}
+  {{ $configs }}: |-
+{{ . | b64dec | indent 4 -}}
+{{- end }}
+{{- end }}
+{{- end }}
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "app.labels" $ | nindent 4 }}
+  name: {{ template "app.fullname" . }}-external
+data:
+{{ range $path, $_ :=  .Files.Glob  "configmaps/*" }}
+{{- if ne (base $path) "README.md" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}
+---
+{{- end }}
