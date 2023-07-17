@@ -17,7 +17,7 @@ global_settings:
   cronjob: false
   hpa: true
 
-##__IMAGE PULL SECRET: default is the application name {{ template "app.fullname" . }}
+##__IMAGE PULL SECRET: default is the application name {{ template "app.fullname" . }}-pullsecret
 ## if the value is empty, then the secret is not created
 ## https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecret: ""
